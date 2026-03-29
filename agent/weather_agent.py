@@ -66,7 +66,7 @@ async def run_agent(user_message: str) -> str:
 
     # Step 1: Extract city from user message
     extract = groq_client.chat.completions.create(
-        model="llama3-8b-8192",
+        model="llama-3.1-8b-instant",
         messages=[
             {
                 "role": "system",
@@ -90,7 +90,7 @@ async def run_agent(user_message: str) -> str:
     # Step 3: Format friendly response with Groq
     weather_json = json.dumps(weather_data, indent=2)
     response = groq_client.chat.completions.create(
-        model="llama3-8b-8192",
+        model="llama-3.1-8b-instant",
         messages=[
             {
                 "role": "system",
