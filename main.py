@@ -4,7 +4,6 @@ FastAPI entrypoint — serves the chat UI and /chat API endpoint.
 
 import os
 import uuid
-import asyncio
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -29,13 +28,11 @@ APP_NAME = "weather_agent_app"
 _sessions: dict[str, tuple[str, str]] = {}
 
 
-def get_or_create_session(session_id: str) -> tuple[str, str]:
+async def get_or_create_session(session_id: str) -> tuple[str, str]:
     if session_id not in _sessions:
         user_id = f"user_{uuid.uuid4().hex[:8]}"
-        asyncio.get_event_loop().run_until_complete(
-            session_service.create_session(
-                app_name=APP_NAME, user_id=user_id, session_id=session_id
-            )
+        await session_service.create_session(
+            app_name=APP_NAME, user_id=user_id, session_id=session_id
         )
         _sessions[session_id] = (user_id, session_id)
     return _sessions[session_id]
@@ -56,7 +53,7 @@ async def root():
 @app.post("/chat")
 async def chat(req: ChatRequest):
     try:
-        user_id, sid = get_or_create_session(req.session_id)
+        user_id, sid = await get_or_create_session(req.session_id)
         agent = create_agent()
         runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
 
