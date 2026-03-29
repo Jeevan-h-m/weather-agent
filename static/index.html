@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Weather Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --sky: #0a1628;
+    --cloud: #111e35;
+    --frost: #1a2d4a;
+    --accent: #4fc3f7;
+    --accent2: #81d4fa;
+    --sun: #ffd54f;
+    --text: #e8f4fd;
+    --muted: #7ca5c8;
+    --radius: 16px;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--sky);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  /* animated sky background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(79,195,247,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(255,213,79,0.04) 0%, transparent 50%),
+      linear-gradient(160deg, #0a1628 0%, #0d1f3c 50%, #091525 100%);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* floating particles */
+  .stars {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .star {
+    position: absolute;
+    border-radius: 50%;
+    background: white;
+    animation: twinkle var(--dur, 3s) ease-in-out infinite var(--delay, 0s);
+    opacity: 0;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0; transform: scale(0.8); }
+    50% { opacity: var(--op, 0.6); transform: scale(1); }
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 700px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 0 16px;
+  }
+
+  header {
+    padding: 28px 0 20px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.7rem;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .logo span { color: var(--accent); }
+
+  .subtitle {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 4px;
+    font-weight: 300;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .mcp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(79,195,247,0.1);
+    border: 1px solid rgba(79,195,247,0.25);
+    border-radius: 100px;
+    padding: 4px 12px;
+    font-size: 0.72rem;
+    color: var(--accent);
+    margin-top: 10px;
+    letter-spacing: 0.04em;
+  }
+  .mcp-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  /* messages */
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--frost) transparent;
+  }
+  #messages::-webkit-scrollbar { width: 4px; }
+  #messages::-webkit-scrollbar-thumb { background: var(--frost); border-radius: 4px; }
+
+  .msg {
+    display: flex;
+    gap: 10px;
+    animation: fadeUp 0.3s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg.user { flex-direction: row-reverse; }
+
+  .avatar {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .msg.agent .avatar { background: rgba(79,195,247,0.15); border: 1px solid rgba(79,195,247,0.3); }
+  .msg.user .avatar  { background: rgba(255,213,79,0.12);  border: 1px solid rgba(255,213,79,0.25); }
+
+  .bubble {
+    max-width: 80%;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    line-height: 1.6;
+    font-size: 0.9rem;
+  }
+  .msg.agent .bubble {
+    background: var(--cloud);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-bottom-left-radius: 4px;
+    color: var(--text);
+  }
+  .msg.user .bubble {
+    background: linear-gradient(135deg, rgba(79,195,247,0.2), rgba(79,195,247,0.1));
+    border: 1px solid rgba(79,195,247,0.25);
+    border-bottom-right-radius: 4px;
+    color: var(--text);
+  }
+
+  /* typing indicator */
+  .typing-dots {
+    display: flex;
+    gap: 4px;
+    padding: 4px 2px;
+    align-items: center;
+  }
+  .typing-dots span {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    animation: dot 1.2s ease-in-out infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dot {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  /* suggestions */
+  .suggestions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+    flex-shrink: 0;
+  }
+  .chip {
+    background: rgba(79,195,247,0.07);
+    border: 1px solid rgba(79,195,247,0.2);
+    border-radius: 100px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    color: var(--accent2);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .chip:hover {
+    background: rgba(79,195,247,0.15);
+    border-color: rgba(79,195,247,0.4);
+    transform: translateY(-1px);
+  }
+
+  /* input row */
+  .input-row {
+    display: flex;
+    gap: 10px;
+    padding: 16px 0 24px;
+    flex-shrink: 0;
+  }
+  #userInput {
+    flex: 1;
+    background: var(--cloud);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 14px 18px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #userInput::placeholder { color: var(--muted); }
+  #userInput:focus { border-color: rgba(79,195,247,0.4); }
+
+  #sendBtn {
+    background: linear-gradient(135deg, #4fc3f7, #29b6f6);
+    border: none;
+    border-radius: 12px;
+    width: 50px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  #sendBtn:hover { transform: translateY(-1px); filter: brightness(1.1); }
+  #sendBtn:active { transform: translateY(0); }
+  #sendBtn svg { color: #0a1628; }
+  #sendBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+</style>
+</head>
+<body>
+
+<div class="stars" id="stars"></div>
+
+<div class="wrapper">
+  <header>
+    <div class="logo">Sky<span>Cast</span> Agent</div>
+    <div class="subtitle">Real-time weather via MCP</div>
+    <div class="mcp-badge"><div class="mcp-dot"></div> MCP · Open-Meteo · ADK · Gemini</div>
+  </header>
+
+  <div id="messages">
+    <div class="msg agent">
+      <div class="avatar">🌤</div>
+      <div class="bubble">Hi! I'm your weather agent. Ask me about the weather anywhere in the world — try "What's the weather in Tokyo?" or pick a city below.</div>
+    </div>
+  </div>
+
+  <div class="suggestions">
+    <button class="chip" onclick="quickAsk('Weather in Bengaluru')">🇮🇳 Bengaluru</button>
+    <button class="chip" onclick="quickAsk('Weather in London')">🇬🇧 London</button>
+    <button class="chip" onclick="quickAsk('Weather in New York')">🇺🇸 New York</button>
+    <button class="chip" onclick="quickAsk('Weather in Tokyo')">🇯🇵 Tokyo</button>
+    <button class="chip" onclick="quickAsk('Weather in Sydney')">🇦🇺 Sydney</button>
+  </div>
+
+  <div class="input-row">
+    <input id="userInput" type="text" placeholder="Ask about the weather anywhere…" autocomplete="off"/>
+    <button id="sendBtn" onclick="sendMessage()">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path d="M22 2L11 13M22 2L15 22 11 13 2 9l20-7z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  // Stars background
+  const starsEl = document.getElementById('stars');
+  for (let i = 0; i < 60; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const size = Math.random() * 2.5 + 0.5;
+    s.style.cssText = `
+      width:${size}px; height:${size}px;
+      top:${Math.random()*100}%; left:${Math.random()*100}%;
+      --dur:${2+Math.random()*4}s;
+      --delay:${Math.random()*5}s;
+      --op:${0.3+Math.random()*0.5};
+    `;
+    starsEl.appendChild(s);
+  }
+
+  const SESSION_ID = 'session_' + Math.random().toString(36).slice(2);
+
+  function quickAsk(text) {
+    document.getElementById('userInput').value = text;
+    sendMessage();
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('userInput');
+    const btn = document.getElementById('sendBtn');
+    const text = input.value.trim();
+    if (!text) return;
+
+    addMessage('user', text);
+    input.value = '';
+    btn.disabled = true;
+
+    const typingId = addTyping();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, session_id: SESSION_ID }),
+      });
+      const data = await res.json();
+      removeTyping(typingId);
+      addMessage('agent', data.reply || 'Something went wrong.');
+    } catch (e) {
+      removeTyping(typingId);
+      addMessage('agent', 'Network error. Please try again.');
+    } finally {
+      btn.disabled = false;
+      input.focus();
+    }
+  }
+
+  function addMessage(role, text) {
+    const msgs = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = `msg ${role}`;
+    div.innerHTML = `
+      <div class="avatar">${role === 'agent' ? '🌤' : '👤'}</div>
+      <div class="bubble">${text.replace(/\n/g, '<br>')}</div>
+    `;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    return div;
+  }
+
+  function addTyping() {
+    const msgs = document.getElementById('messages');
+    const id = 'typing_' + Date.now();
+    const div = document.createElement('div');
+    div.className = 'msg agent';
+    div.id = id;
+    div.innerHTML = `<div class="avatar">🌤</div><div class="bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    return id;
+  }
+
+  function removeTyping(id) {
+    document.getElementById(id)?.remove();
+  }
+
+  document.getElementById('userInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+</script>
+</body>
+</html>
