@@ -3,39 +3,17 @@ FastAPI entrypoint — serves the chat UI and /chat API endpoint.
 """
 
 import os
-import uuid
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types as genai_types
 
-from agent.weather_agent import create_agent
+from agent.weather_agent import run_agent
 
 app = FastAPI(title="Weather Agent")
 
-# Mount static files
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-# ADK setup
-session_service = InMemorySessionService()
-APP_NAME = "weather_agent_app"
-
-# Session store: maps session_id -> (user_id, session_id)
-_sessions: dict[str, tuple[str, str]] = {}
-
-
-async def get_or_create_session(session_id: str) -> tuple[str, str]:
-    if session_id not in _sessions:
-        user_id = f"user_{uuid.uuid4().hex[:8]}"
-        await session_service.create_session(
-            app_name=APP_NAME, user_id=user_id, session_id=session_id
-        )
-        _sessions[session_id] = (user_id, session_id)
-    return _sessions[session_id]
 
 
 class ChatRequest(BaseModel):
@@ -53,29 +31,8 @@ async def root():
 @app.post("/chat")
 async def chat(req: ChatRequest):
     try:
-        user_id, sid = await get_or_create_session(req.session_id)
-        agent = create_agent()
-        runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
-
-        user_msg = genai_types.Content(
-            role="user",
-            parts=[genai_types.Part(text=req.message)]
-        )
-
-        reply_parts = []
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=sid,
-            new_message=user_msg,
-        ):
-            if event.is_final_response() and event.content and event.content.parts:
-                for part in event.content.parts:
-                    if part.text:
-                        reply_parts.append(part.text)
-
-        reply = "".join(reply_parts) or "Sorry, I couldn't get a response. Please try again."
+        reply = await run_agent(req.message)
         return JSONResponse({"reply": reply})
-
     except Exception as e:
         return JSONResponse({"reply": f"Error: {str(e)}"}, status_code=500)
 
