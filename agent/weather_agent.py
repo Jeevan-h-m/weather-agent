@@ -22,7 +22,7 @@ def create_agent() -> Agent:
 
     agent = Agent(
         name="weather_agent",
-        model="gemini-1.5-flash",
+        model="gemini-2.0-flash-lite",
         description="A helpful weather assistant that fetches real-time weather data for any city.",
         instruction="""You are a friendly weather assistant.
 
